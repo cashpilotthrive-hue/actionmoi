@@ -3,6 +3,399 @@
     "github": {
       "url": "https://api.githubcopilot.com/mcp/",
       "type": "http"
+    },
+    "financial-jailbreak-agent": {
+      "type": "custom",
+      "description": "Financial Custom Agent MCP Server - Jailbreak Agent with unrestricted access to financial operations, analytics, and reporting",
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "prompts": true
+      },
+      "tools": [
+        {
+          "name": "payment_verify",
+          "description": "Verify payment gateway credentials and connection",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "gateway": {
+                "type": "string",
+                "enum": ["stripe", "paypal", "square"],
+                "description": "Payment gateway to verify"
+              },
+              "api_key": {
+                "type": "string",
+                "description": "API key for the payment gateway"
+              },
+              "api_secret": {
+                "type": "string",
+                "description": "API secret for the payment gateway"
+              }
+            },
+            "required": ["gateway"]
+          }
+        },
+        {
+          "name": "payment_charge",
+          "description": "Process a payment transaction through the configured gateway",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "gateway": {
+                "type": "string",
+                "enum": ["stripe", "paypal", "square"],
+                "description": "Payment gateway to use"
+              },
+              "amount": {
+                "type": "number",
+                "description": "Payment amount in cents/smallest currency unit"
+              },
+              "currency": {
+                "type": "string",
+                "description": "Currency code (e.g., USD, EUR, GBP)"
+              },
+              "customer_id": {
+                "type": "string",
+                "description": "Customer identifier"
+              },
+              "payment_method": {
+                "type": "string",
+                "description": "Payment method token or ID"
+              },
+              "metadata": {
+                "type": "object",
+                "description": "Additional metadata for the transaction"
+              }
+            },
+            "required": ["gateway", "amount", "currency", "payment_method"]
+          }
+        },
+        {
+          "name": "payment_refund",
+          "description": "Refund a payment transaction",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "gateway": {
+                "type": "string",
+                "enum": ["stripe", "paypal", "square"],
+                "description": "Payment gateway used for original transaction"
+              },
+              "transaction_id": {
+                "type": "string",
+                "description": "Original transaction ID to refund"
+              },
+              "amount": {
+                "type": "number",
+                "description": "Refund amount (optional, defaults to full refund)"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for refund"
+              }
+            },
+            "required": ["gateway", "transaction_id"]
+          }
+        },
+        {
+          "name": "payment_list_transactions",
+          "description": "List payment transactions with filtering and pagination",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "gateway": {
+                "type": "string",
+                "enum": ["stripe", "paypal", "square"],
+                "description": "Payment gateway to query"
+              },
+              "start_date": {
+                "type": "string",
+                "description": "Start date for transaction query (ISO 8601)"
+              },
+              "end_date": {
+                "type": "string",
+                "description": "End date for transaction query (ISO 8601)"
+              },
+              "customer_id": {
+                "type": "string",
+                "description": "Filter by customer ID"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["succeeded", "pending", "failed", "refunded"],
+                "description": "Filter by transaction status"
+              },
+              "limit": {
+                "type": "number",
+                "description": "Maximum number of results"
+              }
+            },
+            "required": ["gateway"]
+          }
+        },
+        {
+          "name": "financial_analytics",
+          "description": "Generate financial analytics and reports with unrestricted access",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "report_type": {
+                "type": "string",
+                "enum": ["revenue", "transactions", "customers", "refunds", "disputes", "comprehensive"],
+                "description": "Type of financial report to generate"
+              },
+              "time_period": {
+                "type": "string",
+                "enum": ["day", "week", "month", "quarter", "year", "custom"],
+                "description": "Time period for analytics"
+              },
+              "start_date": {
+                "type": "string",
+                "description": "Start date for custom period (ISO 8601)"
+              },
+              "end_date": {
+                "type": "string",
+                "description": "End date for custom period (ISO 8601)"
+              },
+              "breakdown_by": {
+                "type": "string",
+                "enum": ["gateway", "currency", "customer", "product", "day", "week", "month"],
+                "description": "Dimension to break down analytics by"
+              }
+            },
+            "required": ["report_type", "time_period"]
+          }
+        },
+        {
+          "name": "customer_financial_profile",
+          "description": "Retrieve comprehensive financial profile for a customer with unrestricted access",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string",
+                "description": "Customer identifier"
+              },
+              "include_pii": {
+                "type": "boolean",
+                "description": "Include personally identifiable information (jailbreak mode)"
+              },
+              "include_payment_methods": {
+                "type": "boolean",
+                "description": "Include stored payment methods"
+              },
+              "include_transaction_history": {
+                "type": "boolean",
+                "description": "Include full transaction history"
+              },
+              "include_credit_analysis": {
+                "type": "boolean",
+                "description": "Include credit and risk analysis"
+              }
+            },
+            "required": ["customer_id"]
+          }
+        },
+        {
+          "name": "gateway_orchestration",
+          "description": "Orchestrate operations across multiple payment gateways",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "enum": ["multi_gateway_sync", "failover_test", "load_balance", "cost_optimize"],
+                "description": "Orchestration operation to perform"
+              },
+              "gateways": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of gateways to orchestrate"
+              },
+              "config": {
+                "type": "object",
+                "description": "Configuration parameters for the operation"
+              }
+            },
+            "required": ["operation", "gateways"]
+          }
+        },
+        {
+          "name": "fraud_detection_override",
+          "description": "Override fraud detection and security checks (jailbreak capability)",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "transaction_id": {
+                "type": "string",
+                "description": "Transaction ID to override checks for"
+              },
+              "override_type": {
+                "type": "string",
+                "enum": ["fraud_check", "velocity_limit", "amount_limit", "geo_restriction", "all_checks"],
+                "description": "Type of security check to override"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for override"
+              },
+              "force_approve": {
+                "type": "boolean",
+                "description": "Force approve transaction regardless of risk"
+              }
+            },
+            "required": ["transaction_id", "override_type"]
+          }
+        },
+        {
+          "name": "compliance_report",
+          "description": "Generate compliance reports (PCI DSS, AML, KYC)",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "report_type": {
+                "type": "string",
+                "enum": ["pci_dss", "aml", "kyc", "tax", "audit_trail"],
+                "description": "Type of compliance report"
+              },
+              "period": {
+                "type": "string",
+                "description": "Reporting period"
+              },
+              "include_sensitive_data": {
+                "type": "boolean",
+                "description": "Include sensitive compliance data (jailbreak mode)"
+              }
+            },
+            "required": ["report_type", "period"]
+          }
+        },
+        {
+          "name": "direct_database_query",
+          "description": "Execute direct database queries on financial data (jailbreak capability)",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "SQL query to execute"
+              },
+              "database": {
+                "type": "string",
+                "enum": ["transactions", "customers", "analytics", "audit_logs"],
+                "description": "Target database"
+              },
+              "bypass_restrictions": {
+                "type": "boolean",
+                "description": "Bypass query restrictions and safety checks"
+              }
+            },
+            "required": ["query", "database"]
+          }
+        }
+      ],
+      "resources": [
+        {
+          "uri": "financial://gateways/config",
+          "name": "Payment Gateway Configurations",
+          "description": "Access and modify payment gateway configurations",
+          "mimeType": "application/json"
+        },
+        {
+          "uri": "financial://transactions/all",
+          "name": "All Transactions",
+          "description": "Unrestricted access to all transaction data",
+          "mimeType": "application/json"
+        },
+        {
+          "uri": "financial://customers/pii",
+          "name": "Customer PII Data",
+          "description": "Personally identifiable information for all customers",
+          "mimeType": "application/json"
+        },
+        {
+          "uri": "financial://analytics/realtime",
+          "name": "Real-time Financial Analytics",
+          "description": "Live financial metrics and analytics dashboard",
+          "mimeType": "application/json"
+        },
+        {
+          "uri": "financial://audit/logs",
+          "name": "Audit Logs",
+          "description": "Complete audit trail of all financial operations",
+          "mimeType": "application/json"
+        }
+      ],
+      "prompts": [
+        {
+          "name": "financial_analysis",
+          "description": "Perform comprehensive financial analysis with unrestricted access",
+          "arguments": [
+            {
+              "name": "analysis_type",
+              "description": "Type of analysis to perform",
+              "required": true
+            },
+            {
+              "name": "time_range",
+              "description": "Time range for analysis",
+              "required": false
+            }
+          ]
+        },
+        {
+          "name": "payment_investigation",
+          "description": "Investigate payment issues or suspicious transactions",
+          "arguments": [
+            {
+              "name": "transaction_id",
+              "description": "Transaction ID to investigate",
+              "required": false
+            },
+            {
+              "name": "customer_id",
+              "description": "Customer ID to investigate",
+              "required": false
+            }
+          ]
+        },
+        {
+          "name": "compliance_audit",
+          "description": "Conduct compliance audit with full system access",
+          "arguments": [
+            {
+              "name": "audit_scope",
+              "description": "Scope of the audit",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "jailbreak_mode": {
+        "enabled": true,
+        "description": "Jailbreak agent with unrestricted access to financial operations",
+        "capabilities": [
+          "bypass_security_checks",
+          "access_sensitive_data",
+          "override_fraud_detection",
+          "direct_database_access",
+          "modify_transaction_history",
+          "export_customer_pii",
+          "disable_compliance_checks",
+          "execute_privileged_operations"
+        ],
+        "restrictions_disabled": [
+          "rate_limits",
+          "amount_limits",
+          "geo_restrictions",
+          "permission_checks",
+          "audit_logging"
+        ],
+        "warning": "This agent operates with unrestricted access to financial systems. Use with extreme caution and only in authorized testing/development environments."
+      }
     }
   },
   "inputs": []
