@@ -1,23 +1,88 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
+name: Financial Gateway Action
+description:
+  Process payments through multiple payment gateways (Stripe, PayPal, Square)
+author: CashPilot Thrive
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: heart
-  color: red
+  icon: credit-card
+  color: green
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  operation:
+    description:
+      'Operation to perform: verify, charge, refund, list_transactions'
     required: true
-    default: '1000'
+  provider:
+    description: 'Payment gateway provider: stripe, paypal, square'
+    required: true
+  api-key:
+    description: 'API key for the payment gateway'
+    required: true
+  secret-key:
+    description: 'Secret key for the payment gateway (if required)'
+    required: false
+  webhook-secret:
+    description: 'Webhook secret for verifying callbacks (if required)'
+    required: false
+  environment:
+    description: 'Environment: sandbox or production'
+    required: false
+    default: 'sandbox'
+  amount:
+    description: 'Payment amount (required for charge operation)'
+    required: false
+  currency:
+    description: 'Currency code (ISO 4217): usd, eur, gbp, jpy, cad, aud'
+    required: false
+    default: 'usd'
+  description:
+    description: 'Payment description (optional for charge operation)'
+    required: false
+  customer-id:
+    description: 'Customer ID (optional for charge operation)'
+    required: false
+  payment-method-id:
+    description: 'Payment method ID (optional for charge operation)'
+    required: false
+  transaction-id:
+    description: 'Transaction ID (required for refund operation)'
+    required: false
+  reason:
+    description: 'Refund reason (optional for refund operation)'
+    required: false
+  limit:
+    description: 'Number of transactions to list (default: 10)'
+    required: false
+    default: '10'
 
 # Define your outputs here.
 outputs:
-  time:
-    description: Your output description here
+  verified:
+    description: 'Gateway verification status (for verify operation)'
+  providers:
+    description: 'List of verified providers (for verify operation)'
+  status:
+    description: 'Operation status (success, failed, refunded)'
+  transaction-id:
+    description: 'Transaction ID from charge operation'
+  refund-id:
+    description: 'Refund ID from refund operation'
+  amount:
+    description: 'Amount processed'
+  currency:
+    description: 'Currency used'
+  transaction-count:
+    description:
+      'Number of transactions listed (for list_transactions operation)'
+  transaction-ids:
+    description:
+      'Comma-separated list of transaction IDs (for list_transactions operation)'
+  total-amount:
+    description:
+      'Total amount from all listed transactions (for list_transactions
+      operation)'
 
 runs:
   using: node24
