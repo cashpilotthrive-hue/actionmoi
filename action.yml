@@ -1,23 +1,25 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
-
+name: TypeScript Action
+description: >-
+  A GitHub Action written in TypeScript. Waits for a specified number of
+  milliseconds and outputs the current time.
+author: cashpilotthrive-hue
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: heart
-  color: red
+  icon: clock
+  color: blue
 
 # Define your inputs here.
 inputs:
   milliseconds:
-    description: Your input description here
+    description:
+      The number of milliseconds to wait before setting the time output.
     required: true
     default: '1000'
 
 # Define your outputs here.
 outputs:
   time:
-    description: Your output description here
+    description: The time after the wait has completed.
 
 runs:
   using: node24
