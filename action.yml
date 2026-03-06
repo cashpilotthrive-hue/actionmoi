@@ -1,23 +1,34 @@
-name: The name of your action here
-description: Provide a description here
+name: Agent Workflow Dashboard
+description: Display a dashboard showing GitHub Actions workflow information
 author: Your name or organization here
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: heart
-  color: red
+  icon: activity
+  color: blue
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  github-token:
+    description: 'GitHub token for API access (typically secrets.GITHUB_TOKEN)'
     required: true
-    default: '1000'
+  repository:
+    description:
+      'Repository in the format owner/repo (defaults to current repository)'
+    required: false
+  workflow-count:
+    description: 'Number of recent workflow runs to display'
+    required: false
+    default: '10'
+  show-jobs:
+    description: 'Show individual jobs within workflows'
+    required: false
+    default: 'true'
 
 # Define your outputs here.
 outputs:
-  time:
-    description: Your output description here
+  dashboard-url:
+    description: 'URL to the generated dashboard summary'
 
 runs:
   using: node24

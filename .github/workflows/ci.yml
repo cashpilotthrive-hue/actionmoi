@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   test-typescript:
@@ -53,12 +54,15 @@ jobs:
         id: checkout
         uses: actions/checkout@v6
 
-      - name: Test Local Action
+      - name: Test Dashboard Action
         id: test-action
         uses: ./
         with:
-          milliseconds: 2000
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          workflow-count: 5
+          show-jobs: true
 
-      - name: Print Output
+      - name: Print Dashboard URL
         id: output
-        run: echo "${{ steps.test-action.outputs.time }}"
+        run: |
+          echo "Dashboard URL: ${{ steps.test-action.outputs.dashboard-url }}"
