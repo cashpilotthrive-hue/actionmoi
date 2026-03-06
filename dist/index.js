@@ -27962,6 +27962,12 @@ var ExitCode;
  */
 function getInput(name, options) {
     const val = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || '';
+    if (options && options.required && !val) {
+        throw new Error(`Input required and not supplied: ${name}`);
+    }
+    if (options && options.trimWhitespace === false) {
+        return val;
+    }
     return val.trim();
 }
 /**
@@ -27992,13 +27998,6 @@ function setFailed(message) {
     error(message);
 }
 /**
- * Writes debug message to user log
- * @param message debug message
- */
-function debug(message) {
-    issueCommand('debug', {}, message);
-}
-/**
  * Adds an error issue
  * @param message error issue message. Errors will be converted to string via toString()
  * @param properties optional properties to add to the annotation.
@@ -28006,19 +28005,712 @@ function debug(message) {
 function error(message, properties = {}) {
     issueCommand('error', toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
+/**
+ * Writes info to log with console.log.
+ * @param message info message
+ */
+function info(message) {
+    process.stdout.write(message + os.EOL);
+}
 
 /**
- * Waits for a number of milliseconds.
- *
- * @param milliseconds The number of milliseconds to wait.
- * @returns Resolves with 'done!' after the wait is over.
+ * Payment gateway types and interfaces
  */
-async function wait(milliseconds) {
-    return new Promise((resolve) => {
-        if (isNaN(milliseconds))
-            throw new Error('milliseconds is not a number');
-        setTimeout(() => resolve('done!'), milliseconds);
-    });
+/**
+ * Supported payment gateway providers
+ */
+var GatewayProvider;
+(function (GatewayProvider) {
+    GatewayProvider["STRIPE"] = "stripe";
+    GatewayProvider["PAYPAL"] = "paypal";
+    GatewayProvider["SQUARE"] = "square";
+})(GatewayProvider || (GatewayProvider = {}));
+/**
+ * Payment operation types
+ */
+var PaymentOperation;
+(function (PaymentOperation) {
+    PaymentOperation["CHARGE"] = "charge";
+    PaymentOperation["REFUND"] = "refund";
+    PaymentOperation["VERIFY"] = "verify";
+    PaymentOperation["LIST_TRANSACTIONS"] = "list_transactions";
+})(PaymentOperation || (PaymentOperation = {}));
+/**
+ * Payment status
+ */
+var PaymentStatus;
+(function (PaymentStatus) {
+    PaymentStatus["SUCCESS"] = "success";
+    PaymentStatus["FAILED"] = "failed";
+    PaymentStatus["PENDING"] = "pending";
+    PaymentStatus["REFUNDED"] = "refunded";
+})(PaymentStatus || (PaymentStatus = {}));
+/**
+ * Currency codes (ISO 4217)
+ */
+var Currency;
+(function (Currency) {
+    Currency["USD"] = "usd";
+    Currency["EUR"] = "eur";
+    Currency["GBP"] = "gbp";
+    Currency["JPY"] = "jpy";
+    Currency["CAD"] = "cad";
+    Currency["AUD"] = "aud";
+})(Currency || (Currency = {}));
+
+/**
+ * Base abstract class for payment gateways
+ */
+/**
+ * Abstract base class that provides common functionality for all gateways
+ */
+class BaseGateway {
+    provider;
+    config;
+    initialized = false;
+    constructor(provider) {
+        this.provider = provider;
+    }
+    /**
+     * Initialize the gateway with configuration
+     */
+    async initialize(config) {
+        this.validateConfig(config);
+        this.config = config;
+        this.initialized = true;
+    }
+    /**
+     * Validate gateway configuration
+     */
+    validateConfig(config) {
+        if (!config.apiKey) {
+            throw new Error(`API key is required for ${this.provider} gateway`);
+        }
+        if (config.provider !== this.provider) {
+            throw new Error(`Invalid provider: expected ${this.provider}, got ${config.provider}`);
+        }
+    }
+    /**
+     * Ensure gateway is initialized before operations
+     */
+    ensureInitialized() {
+        if (!this.initialized || !this.config) {
+            throw new Error(`${this.provider} gateway not initialized`);
+        }
+    }
+    /**
+     * Validate payment request
+     */
+    validatePaymentRequest(request) {
+        if (!request.amount || request.amount <= 0) {
+            throw new Error('Invalid payment amount');
+        }
+        if (!request.currency) {
+            throw new Error('Currency is required');
+        }
+    }
+    /**
+     * Validate refund request
+     */
+    validateRefundRequest(request) {
+        if (!request.transactionId) {
+            throw new Error('Transaction ID is required for refund');
+        }
+        if (request.amount !== undefined && request.amount <= 0) {
+            throw new Error('Invalid refund amount');
+        }
+    }
+}
+
+/**
+ * Stripe payment gateway implementation
+ */
+/**
+ * Stripe payment gateway
+ */
+class StripeGateway extends BaseGateway {
+    constructor() {
+        super(GatewayProvider.STRIPE);
+    }
+    /**
+     * Process a payment through Stripe
+     */
+    async charge(request) {
+        this.ensureInitialized();
+        this.validatePaymentRequest(request);
+        try {
+            // Simulate Stripe API call
+            // In production, this would use the Stripe SDK
+            const response = await this.mockStripeCharge(request);
+            return {
+                transactionId: response.id,
+                status: PaymentStatus.SUCCESS,
+                amount: request.amount,
+                currency: request.currency,
+                timestamp: new Date(),
+                gatewayResponse: response
+            };
+        }
+        catch (error) {
+            return {
+                transactionId: '',
+                status: PaymentStatus.FAILED,
+                amount: request.amount,
+                currency: request.currency,
+                timestamp: new Date(),
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Refund a Stripe payment
+     */
+    async refund(request) {
+        this.ensureInitialized();
+        this.validateRefundRequest(request);
+        try {
+            // Simulate Stripe refund API call
+            const response = await this.mockStripeRefund(request);
+            return {
+                transactionId: response.id,
+                status: PaymentStatus.REFUNDED,
+                amount: response.amount,
+                currency: Currency.USD,
+                timestamp: new Date(),
+                gatewayResponse: response
+            };
+        }
+        catch (error) {
+            return {
+                transactionId: request.transactionId,
+                status: PaymentStatus.FAILED,
+                amount: 0,
+                currency: Currency.USD,
+                timestamp: new Date(),
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Verify Stripe credentials and connection
+     */
+    async verify() {
+        this.ensureInitialized();
+        try {
+            // Simulate Stripe API verification
+            await this.mockStripeVerify();
+            return true;
+        }
+        catch (error) {
+            return false;
+        }
+    }
+    /**
+     * List recent Stripe transactions
+     */
+    async listTransactions(limit = 10) {
+        this.ensureInitialized();
+        try {
+            // Simulate Stripe API call to list transactions
+            return await this.mockStripeListTransactions(limit);
+        }
+        catch (error) {
+            throw new Error(`Failed to list transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    // Mock methods - in production these would call actual Stripe API
+    async mockStripeCharge(request) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    id: `ch_${Math.random().toString(36).substring(7)}`,
+                    amount: request.amount,
+                    currency: request.currency
+                });
+            }, 100);
+        });
+    }
+    async mockStripeRefund(request) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    id: `re_${Math.random().toString(36).substring(7)}`,
+                    amount: request.amount || 0,
+                    currency: 'usd'
+                });
+            }, 100);
+        });
+    }
+    async mockStripeVerify() {
+        return new Promise((resolve) => {
+            setTimeout(() => resolve(), 50);
+        });
+    }
+    async mockStripeListTransactions(limit) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const transactions = [];
+                for (let i = 0; i < Math.min(limit, 5); i++) {
+                    transactions.push({
+                        id: `ch_${Math.random().toString(36).substring(7)}`,
+                        amount: Math.floor(Math.random() * 10000) + 100,
+                        currency: Currency.USD,
+                        status: PaymentStatus.SUCCESS,
+                        timestamp: new Date(Date.now() - i * 86400000),
+                        description: `Test transaction ${i + 1}`
+                    });
+                }
+                resolve(transactions);
+            }, 100);
+        });
+    }
+}
+
+/**
+ * PayPal payment gateway implementation
+ */
+/**
+ * PayPal payment gateway
+ */
+class PayPalGateway extends BaseGateway {
+    constructor() {
+        super(GatewayProvider.PAYPAL);
+    }
+    /**
+     * Process a payment through PayPal
+     */
+    async charge(request) {
+        this.ensureInitialized();
+        this.validatePaymentRequest(request);
+        try {
+            // Simulate PayPal API call
+            const response = await this.mockPayPalCharge(request);
+            return {
+                transactionId: response.id,
+                status: PaymentStatus.SUCCESS,
+                amount: request.amount,
+                currency: request.currency,
+                timestamp: new Date(),
+                gatewayResponse: response
+            };
+        }
+        catch (error) {
+            return {
+                transactionId: '',
+                status: PaymentStatus.FAILED,
+                amount: request.amount,
+                currency: request.currency,
+                timestamp: new Date(),
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Refund a PayPal payment
+     */
+    async refund(request) {
+        this.ensureInitialized();
+        this.validateRefundRequest(request);
+        try {
+            // Simulate PayPal refund API call
+            const response = await this.mockPayPalRefund(request);
+            return {
+                transactionId: response.id,
+                status: PaymentStatus.REFUNDED,
+                amount: response.amount,
+                currency: response.currency,
+                timestamp: new Date(),
+                gatewayResponse: response
+            };
+        }
+        catch (error) {
+            return {
+                transactionId: request.transactionId,
+                status: PaymentStatus.FAILED,
+                amount: 0,
+                currency: Currency.USD,
+                timestamp: new Date(),
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Verify PayPal credentials and connection
+     */
+    async verify() {
+        this.ensureInitialized();
+        try {
+            // Simulate PayPal API verification
+            await this.mockPayPalVerify();
+            return true;
+        }
+        catch (error) {
+            return false;
+        }
+    }
+    /**
+     * List recent PayPal transactions
+     */
+    async listTransactions(limit = 10) {
+        this.ensureInitialized();
+        try {
+            // Simulate PayPal API call to list transactions
+            return await this.mockPayPalListTransactions(limit);
+        }
+        catch (error) {
+            throw new Error(`Failed to list transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    // Mock methods - in production these would call actual PayPal API
+    async mockPayPalCharge(request) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    id: `PAYID-${Math.random().toString(36).substring(2).toUpperCase()}`,
+                    amount: request.amount,
+                    currency: request.currency
+                });
+            }, 150);
+        });
+    }
+    async mockPayPalRefund(request) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    id: `REFUND-${Math.random().toString(36).substring(2).toUpperCase()}`,
+                    amount: request.amount || 0,
+                    currency: 'usd'
+                });
+            }, 150);
+        });
+    }
+    async mockPayPalVerify() {
+        return new Promise((resolve) => {
+            setTimeout(() => resolve(), 50);
+        });
+    }
+    async mockPayPalListTransactions(limit) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const transactions = [];
+                for (let i = 0; i < Math.min(limit, 5); i++) {
+                    transactions.push({
+                        id: `PAYID-${Math.random().toString(36).substring(2).toUpperCase()}`,
+                        amount: Math.floor(Math.random() * 10000) + 100,
+                        currency: Currency.USD,
+                        status: PaymentStatus.SUCCESS,
+                        timestamp: new Date(Date.now() - i * 86400000),
+                        description: `PayPal transaction ${i + 1}`
+                    });
+                }
+                resolve(transactions);
+            }, 150);
+        });
+    }
+}
+
+/**
+ * Square payment gateway implementation
+ */
+/**
+ * Square payment gateway
+ */
+class SquareGateway extends BaseGateway {
+    constructor() {
+        super(GatewayProvider.SQUARE);
+    }
+    /**
+     * Process a payment through Square
+     */
+    async charge(request) {
+        this.ensureInitialized();
+        this.validatePaymentRequest(request);
+        try {
+            // Simulate Square API call
+            const response = await this.mockSquareCharge(request);
+            return {
+                transactionId: response.id,
+                status: PaymentStatus.SUCCESS,
+                amount: request.amount,
+                currency: request.currency,
+                timestamp: new Date(),
+                gatewayResponse: response
+            };
+        }
+        catch (error) {
+            return {
+                transactionId: '',
+                status: PaymentStatus.FAILED,
+                amount: request.amount,
+                currency: request.currency,
+                timestamp: new Date(),
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Refund a Square payment
+     */
+    async refund(request) {
+        this.ensureInitialized();
+        this.validateRefundRequest(request);
+        try {
+            // Simulate Square refund API call
+            const response = await this.mockSquareRefund(request);
+            return {
+                transactionId: response.id,
+                status: PaymentStatus.REFUNDED,
+                amount: response.amount,
+                currency: response.currency,
+                timestamp: new Date(),
+                gatewayResponse: response
+            };
+        }
+        catch (error) {
+            return {
+                transactionId: request.transactionId,
+                status: PaymentStatus.FAILED,
+                amount: 0,
+                currency: Currency.USD,
+                timestamp: new Date(),
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Verify Square credentials and connection
+     */
+    async verify() {
+        this.ensureInitialized();
+        try {
+            // Simulate Square API verification
+            await this.mockSquareVerify();
+            return true;
+        }
+        catch (error) {
+            return false;
+        }
+    }
+    /**
+     * List recent Square transactions
+     */
+    async listTransactions(limit = 10) {
+        this.ensureInitialized();
+        try {
+            // Simulate Square API call to list transactions
+            return await this.mockSquareListTransactions(limit);
+        }
+        catch (error) {
+            throw new Error(`Failed to list transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    // Mock methods - in production these would call actual Square API
+    async mockSquareCharge(request) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    id: `sq_${Math.random().toString(36).substring(7)}`,
+                    amount: request.amount,
+                    currency: request.currency
+                });
+            }, 120);
+        });
+    }
+    async mockSquareRefund(request) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    id: `sqrf_${Math.random().toString(36).substring(7)}`,
+                    amount: request.amount || 0,
+                    currency: 'usd'
+                });
+            }, 120);
+        });
+    }
+    async mockSquareVerify() {
+        return new Promise((resolve) => {
+            setTimeout(() => resolve(), 50);
+        });
+    }
+    async mockSquareListTransactions(limit) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const transactions = [];
+                for (let i = 0; i < Math.min(limit, 5); i++) {
+                    transactions.push({
+                        id: `sq_${Math.random().toString(36).substring(7)}`,
+                        amount: Math.floor(Math.random() * 10000) + 100,
+                        currency: Currency.USD,
+                        status: PaymentStatus.SUCCESS,
+                        timestamp: new Date(Date.now() - i * 86400000),
+                        description: `Square transaction ${i + 1}`
+                    });
+                }
+                resolve(transactions);
+            }, 120);
+        });
+    }
+}
+
+/**
+ * Gateway factory for creating payment gateway instances
+ */
+/**
+ * Factory class for creating payment gateway instances
+ */
+class GatewayFactory {
+    /**
+     * Create a payment gateway instance based on provider
+     */
+    static createGateway(provider) {
+        switch (provider) {
+            case GatewayProvider.STRIPE:
+                return new StripeGateway();
+            case GatewayProvider.PAYPAL:
+                return new PayPalGateway();
+            case GatewayProvider.SQUARE:
+                return new SquareGateway();
+            default:
+                throw new Error(`Unsupported payment gateway: ${provider}`);
+        }
+    }
+    /**
+     * Create multiple gateway instances
+     */
+    static createGateways(providers) {
+        return providers.map((provider) => this.createGateway(provider));
+    }
+    /**
+     * Get all available gateway providers
+     */
+    static getAvailableProviders() {
+        return [
+            GatewayProvider.STRIPE,
+            GatewayProvider.PAYPAL,
+            GatewayProvider.SQUARE
+        ];
+    }
+}
+
+/**
+ * Gateway orchestrator for managing multiple payment gateways
+ */
+/**
+ * Orchestrator class for managing multiple payment gateways
+ */
+class GatewayOrchestrator {
+    gateways = new Map();
+    primaryGateway;
+    /**
+     * Add a gateway with configuration
+     */
+    async addGateway(config) {
+        const gateway = GatewayFactory.createGateway(config.provider);
+        await gateway.initialize(config);
+        this.gateways.set(config.provider, gateway);
+        // Set as primary if it's the first gateway
+        if (!this.primaryGateway) {
+            this.primaryGateway = config.provider;
+        }
+    }
+    /**
+     * Set the primary gateway for operations
+     */
+    setPrimaryGateway(provider) {
+        if (!this.gateways.has(provider)) {
+            throw new Error(`Gateway ${provider} not found`);
+        }
+        this.primaryGateway = provider;
+    }
+    /**
+     * Get a specific gateway
+     */
+    getGateway(provider) {
+        const gateway = this.gateways.get(provider);
+        if (!gateway) {
+            throw new Error(`Gateway ${provider} not found`);
+        }
+        return gateway;
+    }
+    /**
+     * Get the primary gateway
+     */
+    getPrimaryGateway() {
+        if (!this.primaryGateway) {
+            throw new Error('No primary gateway configured');
+        }
+        return this.getGateway(this.primaryGateway);
+    }
+    /**
+     * Process a payment using the primary gateway
+     */
+    async charge(request) {
+        return await this.getPrimaryGateway().charge(request);
+    }
+    /**
+     * Process a payment using a specific gateway
+     */
+    async chargeWithGateway(provider, request) {
+        return await this.getGateway(provider).charge(request);
+    }
+    /**
+     * Refund a payment using the primary gateway
+     */
+    async refund(request) {
+        return await this.getPrimaryGateway().refund(request);
+    }
+    /**
+     * Refund a payment using a specific gateway
+     */
+    async refundWithGateway(provider, request) {
+        return await this.getGateway(provider).refund(request);
+    }
+    /**
+     * Verify all configured gateways
+     */
+    async verifyAll() {
+        const results = new Map();
+        for (const [provider, gateway] of this.gateways) {
+            try {
+                const isValid = await gateway.verify();
+                results.set(provider, isValid);
+            }
+            catch (error) {
+                results.set(provider, false);
+            }
+        }
+        return results;
+    }
+    /**
+     * List transactions from the primary gateway
+     */
+    async listTransactions(limit) {
+        return await this.getPrimaryGateway().listTransactions(limit);
+    }
+    /**
+     * List transactions from a specific gateway
+     */
+    async listTransactionsFromGateway(provider, limit) {
+        return await this.getGateway(provider).listTransactions(limit);
+    }
+    /**
+     * Get all configured gateway providers
+     */
+    getConfiguredProviders() {
+        return Array.from(this.gateways.keys());
+    }
+    /**
+     * Check if a gateway is configured
+     */
+    hasGateway(provider) {
+        return this.gateways.has(provider);
+    }
+    /**
+     * Get count of configured gateways
+     */
+    getGatewayCount() {
+        return this.gateways.size;
+    }
 }
 
 /**
@@ -28028,20 +28720,138 @@ async function wait(milliseconds) {
  */
 async function run() {
     try {
-        const ms = getInput('milliseconds');
-        // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-        debug(`Waiting ${ms} milliseconds ...`);
-        // Log the current timestamp, wait, then log the new timestamp
-        debug(new Date().toTimeString());
-        await wait(parseInt(ms, 10));
-        debug(new Date().toTimeString());
-        // Set outputs for other workflow steps to use
-        setOutput('time', new Date().toTimeString());
+        // Get inputs
+        const operation = getInput('operation', { required: true });
+        const provider = getInput('provider', { required: true });
+        const apiKey = getInput('api-key', { required: true });
+        const secretKey = getInput('secret-key');
+        const webhookSecret = getInput('webhook-secret');
+        const environment = getInput('environment') || 'sandbox';
+        info(`🔧 Initializing ${provider} gateway in ${environment} mode...`);
+        // Initialize orchestrator
+        const orchestrator = new GatewayOrchestrator();
+        // Configure gateway
+        const config = {
+            provider: provider,
+            apiKey,
+            secretKey: secretKey || undefined,
+            webhookSecret: webhookSecret || undefined,
+            environment: environment
+        };
+        await orchestrator.addGateway(config);
+        info(`✅ ${provider} gateway initialized successfully`);
+        // Execute operation
+        switch (operation) {
+            case PaymentOperation.VERIFY:
+                await handleVerify(orchestrator);
+                break;
+            case PaymentOperation.CHARGE:
+                await handleCharge(orchestrator);
+                break;
+            case PaymentOperation.REFUND:
+                await handleRefund(orchestrator);
+                break;
+            case PaymentOperation.LIST_TRANSACTIONS:
+                await handleListTransactions(orchestrator);
+                break;
+            default:
+                throw new Error(`Unsupported operation: ${operation}`);
+        }
+        info('🎉 Operation completed successfully');
     }
     catch (error) {
         // Fail the workflow run if an error occurs
         if (error instanceof Error)
             setFailed(error.message);
+    }
+}
+/**
+ * Handle verify operation
+ */
+async function handleVerify(orchestrator) {
+    info('🔍 Verifying gateway connection...');
+    const results = await orchestrator.verifyAll();
+    for (const [provider, isValid] of results) {
+        if (isValid) {
+            info(`✅ ${provider} gateway verified successfully`);
+        }
+        else {
+            throw new Error(`❌ ${provider} gateway verification failed`);
+        }
+    }
+    setOutput('verified', 'true');
+    setOutput('providers', Array.from(results.keys()).join(','));
+}
+/**
+ * Handle charge operation
+ */
+async function handleCharge(orchestrator) {
+    const amount = parseFloat(getInput('amount', { required: true }));
+    const currency = (getInput('currency') || 'usd');
+    const description = getInput('description');
+    const customerId = getInput('customer-id');
+    const paymentMethodId = getInput('payment-method-id');
+    info(`💳 Processing charge: ${amount} ${currency.toUpperCase()}`);
+    const response = await orchestrator.charge({
+        amount,
+        currency,
+        description: description || undefined,
+        customerId: customerId || undefined,
+        paymentMethodId: paymentMethodId || undefined
+    });
+    if (response.status === PaymentStatus.SUCCESS) {
+        info(`✅ Payment successful - Transaction ID: ${response.transactionId}`);
+        setOutput('status', 'success');
+        setOutput('transaction-id', response.transactionId);
+        setOutput('amount', response.amount.toString());
+        setOutput('currency', response.currency);
+    }
+    else {
+        throw new Error(`Payment failed: ${response.errorMessage || 'Unknown error'}`);
+    }
+}
+/**
+ * Handle refund operation
+ */
+async function handleRefund(orchestrator) {
+    const transactionId = getInput('transaction-id', { required: true });
+    const amountInput = getInput('amount');
+    const amount = amountInput ? parseFloat(amountInput) : undefined;
+    const reason = getInput('reason');
+    info(`🔄 Processing refund for transaction: ${transactionId}`);
+    const response = await orchestrator.refund({
+        transactionId,
+        amount,
+        reason: reason || undefined
+    });
+    if (response.status === PaymentStatus.REFUNDED) {
+        info(`✅ Refund successful - Refund ID: ${response.transactionId}`);
+        setOutput('status', 'refunded');
+        setOutput('refund-id', response.transactionId);
+        setOutput('amount', response.amount.toString());
+    }
+    else {
+        throw new Error(`Refund failed: ${response.errorMessage || 'Unknown error'}`);
+    }
+}
+/**
+ * Handle list transactions operation
+ */
+async function handleListTransactions(orchestrator) {
+    const limitInput = getInput('limit');
+    const limit = limitInput ? parseInt(limitInput, 10) : 10;
+    info(`📋 Listing transactions (limit: ${limit})...`);
+    const transactions = await orchestrator.listTransactions(limit);
+    info(`Found ${transactions.length} transactions`);
+    // Output transaction details
+    const transactionIds = transactions.map((t) => t.id).join(',');
+    const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+    setOutput('transaction-count', transactions.length.toString());
+    setOutput('transaction-ids', transactionIds);
+    setOutput('total-amount', totalAmount.toString());
+    // Log transaction summary
+    for (const transaction of transactions) {
+        info(`  - ${transaction.id}: ${transaction.amount} ${transaction.currency.toUpperCase()} (${transaction.status})`);
     }
 }
 
